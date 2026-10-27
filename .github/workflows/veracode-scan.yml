@@ -1,0 +1,88 @@
+name: Veracode Static Analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  veracode-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build WAR with Maven
+        working-directory: app
+        run: mvn clean package -Dproject.build.outputTimestamp=
+
+      - name: Veracode Upload And Scan
+        uses: veracode/veracode-uploadandscan-action@0.2.11
+        with:
+          appname: 'Jason Bates Technical Panel'
+          createprofile: false
+          createsandbox: true
+          sandboxname: 'Github'
+          filepath: 'app/target/verademo.war'
+          vid: '${{ secrets.VERACODE_API_ID }}'
+          vkey: '${{ secrets.VERACODE_API_KEY }}'
+          criticality: 'VeryLow'
+          scantimeout: 60
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '8'
+          cache: 'maven'
+      - name: Build WAR with Maven
+        working-directory: app
+        run: mvn clean package -Dproject.build.outputTimestamp=
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verademo.war
+          path: app/target/verademo.war
+
+  pipeline_scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v4
+        with:
+          name: verademo.war
+      - uses: veracode/Veracode-pipeline-scan-action@v1.0.20
+        with:
+          vid: '${{ secrets.VERACODE_API_ID }}'
+          vkey: '${{ secrets.VERACODE_API_KEY }}'
+          file: 'verademo.war'
+          fail_build: false
+
+  veracode_fix:
+    needs: pipeline_scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'Veracode Pipeline-Scan Results*'
+          merge-multiple: true
+      - uses: Veracode/veracode-fix@v1.0.6
+        with:
+          vid: '${{ secrets.VERACODE_API_ID }}'
+          vkey: '${{ secrets.VERACODE_API_KEY }}'
+          inputFile: filtered_results.json
+          fixType: batch
+          files: changed
+          prComment: true

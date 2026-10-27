@@ -60,7 +60,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: verademo.war
-      - uses: veracode/Veracode-pipeline-scan-action@v1.0.12
+      - uses: veracode/Veracode-pipeline-scan-action@v1.0.20
         with:
           vid: '${{ secrets.VERACODE_API_ID }}'
           vkey: '${{ secrets.VERACODE_API_KEY }}'
